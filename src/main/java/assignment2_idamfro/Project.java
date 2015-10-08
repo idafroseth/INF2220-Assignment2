@@ -7,13 +7,17 @@ import java.io.FileReader;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedList;
+import java.util.Map;
 import java.util.PriorityQueue;
 import java.util.Queue;
+import java.util.Set;
 
 public class Project {
 	public Project(String projectName){
 		this.inputFilename = projectName;
+		System.out.println("\n******** PROJECT " + inputFilename + " **********");
 		importTasks();
 		topologicalSort(NUM_TASKS);
 		printTasks();
@@ -27,6 +31,9 @@ public class Project {
 	LinkedList<Task> queue;
 	LinkedList<Task> delayedQueue = new LinkedList<Task>();
 	LinkedList<Task> lastQueue = new LinkedList<Task>();
+	HashMap<Integer, ArrayList<Task>> tasksAtStartTime = new HashMap<Integer, ArrayList<Task>>();
+	HashMap<Integer, ArrayList<Task>> tasksAtStopTime = new HashMap<Integer, ArrayList<Task>>();
+	Set<Integer> loop = new HashSet<Integer>();
 	int finishTime;
 	
 	
@@ -34,10 +41,11 @@ public class Project {
 	//Delayed t1 when the only edge from t1 is to t3 and t3 also have a dependency to t2 which takes more time than t1
 	//t1 has then positive slack because it do not have to be done before x time units after schedule
 	//Tasks with slack 0 is critical tasks and someone else depend on it
-	//Complexity is N tasks + E edges/task
+	/**
+	 * Performing a topological sort of the project execution. The complexity of this method is N-tasks
+	 * @param projectSize
+	 */
 	public void topologicalSort(int projectSize){
-		//int time = startTask().stopTime;
-		//findNextTask(0);
 		int counter = 0;
 		LinkedList<Task> queue = new LinkedList<Task>();
 		for(Task task : projectTasks.values()){
@@ -45,6 +53,9 @@ public class Project {
 				queue.add(task);
 				task.earliestStartTime = 0;
 				task.stopTime = task.timeConsumption;
+				delayedQueue.add(task);
+				addToStartQueue(0,task);
+				addToStopQueue(task.stopTime,task);
 			}
 		}
 		Task workingTask = null;
@@ -52,11 +63,20 @@ public class Project {
 			workingTask = queue.getFirst();
 			queue.remove(workingTask);
 			++counter;
+			
 			for(Task task : workingTask.outEdges){
 				if(--task.indegree == 0){
 					queue.add(task);
-					task.earliestStartTime = workingTask.stopTime;
-					task.stopTime = task.earliestStartTime +task.timeConsumption;
+					int time = workingTask.stopTime;
+					int stopTime = time +task.timeConsumption;
+					task.earliestStartTime =  time;
+					task.stopTime = stopTime;
+					
+					addToStartQueue(time,task);
+					addToStopQueue(stopTime,task);
+					
+					
+					//Add them to the slack queues
 					if(task.outEdges.size()!= 0){
 						delayedQueue.add(task);
 					}else{
@@ -67,57 +87,46 @@ public class Project {
 			}
 		}
 		finishTime = workingTask.stopTime;
-		calculateSlack();
+		
 		haveLoop(counter, projectSize);
+		calculateSlack();
 	}
 	
-	private void calculateSlack(){
-		while(lastQueue.size() != 0){
-			Task task = lastQueue.removeFirst();
-			if(task.stopTime<finishTime){
-				task.slack = finishTime - task.stopTime;
-				task.latestStartTime = finishTime - task.timeConsumption;
-			}
-		}
-		while(delayedQueue.size() != 0){
-			Task task = delayedQueue.removeFirst();
-			int latestStartTime = 0;
-			inner:
-			for(Task dependent : task.outEdges){
-				
-				//If task is the only inEdge to another task, this task cannot be delayed
-				if(dependent.inEdges.size() == 1){
-					System.out.println("This task " + task.id +" cannot be delayed");
-					task.slack = 0;
-					task.latestStartTime = task.earliestStartTime;
-					break inner;
-				}
-				int count = 0;
-				for(Integer sameLevel : dependent.inEdges){
-						if(projectTasks.get(sameLevel).stopTime<task.stopTime){
-							count++;
-						}
-						else if(latestStartTime<projectTasks.get(sameLevel).stopTime){
-							latestStartTime = projectTasks.get(sameLevel).stopTime;
-							task.visited =false;
-						}
-				}
-				//If all the in edges where this.task has an out edge is the largest stop time, this mean that this task cannot be delayed
-				if(count == dependent.inEdges.size()){
-					System.out.println("This task "+ task.id+ " cannot be delayed!!");
-					task.slack = 0;
-					task.latestStartTime = task.earliestStartTime;
-					break inner;
-					
-				}
-				else if(task.latestStartTime < latestStartTime){
-					task.latestStartTime = latestStartTime;
-					task.slack = task.latestStartTime -task.earliestStartTime;
-				//	System.out.println("Task id " + task.id + "setting latest startTime to " + latestStartTime + " and slack to " + task.slack);
-				}
-			}
+	/**
+	 * Private method to add a task to the start queue
+	 * @param stopTime
+	 * @param task
+	 */
+	private void addToStartQueue(int time, Task task){
+		if(tasksAtStartTime.containsKey(time)){
+			ArrayList<Task> updated = tasksAtStartTime.get(time);
+			updated.add(task);
+			tasksAtStartTime.replace(time, updated);
+		}else{
+			ArrayList<Task> newList = new ArrayList<Task>();
+			newList.add(task);
+			tasksAtStartTime.put(time, newList);
 		}
 	}
+	
+	/**
+	 * Private method to add a task to the stop queue
+	 * @param stopTime
+	 * @param task
+	 */
+	private void addToStopQueue(int stopTime, Task task){
+		if(tasksAtStopTime.containsKey(stopTime)){
+			ArrayList<Task> updated = tasksAtStopTime.get(stopTime);
+			updated.add(task);
+			tasksAtStopTime.replace(task.stopTime, updated);
+		}else{
+			ArrayList<Task> newList = new ArrayList<Task>();
+			newList.add(task);
+			tasksAtStopTime.put(stopTime, newList);
+		}
+	}
+	
+	
 	
 	//Check if there is a loop. If there is a simple loop it would be able to find the loop, 
 	//if the loop is not only between two, but three or more tasks, we are not able to catch where the loop is
@@ -135,7 +144,6 @@ public class Project {
 			}
 			
 			System.out.println("Nodes in a loop are: ");
-			
 			while(potTask.size() != 0){
 				Task workTask = potTask.removeFirst();
 				int startId = workTask.id;
@@ -145,6 +153,9 @@ public class Project {
 				if(checkLoop(workTask, startId)){
 					track.add(workTask);
 				}
+			}
+			for(Integer id : loop){
+				System.out.print(id + ", ");
 			}
 			System.exit(0);
 			return true;
@@ -165,78 +176,99 @@ public class Project {
 		}
 		for(Task dependentTask : workTask.outEdges){
 			if(dependentTask.id == id){
-				System.out.print(id + ", ");
-				result = true;
+				loop.add(id);
 				return true;
 	
 			}else{
 				result = checkLoop(dependentTask, id);
-				//return result;
 			}
 		}
 		return result;
 	}
 	
-	
-	
-	public void printProjectExecution(){
-		//Easiest way has to be to save the items in a map with the <StartTime, ArrayList<Tasks>>
-		HashMap<Integer, ArrayList<Task>> workingSet = new HashMap<Integer, ArrayList<Task>>();
-		HashMap<Integer, ArrayList<Task>> stoppingSet = new HashMap<Integer, ArrayList<Task>>();
-		
-		ArrayList<Task> tasksAtTime = new ArrayList<Task>();
-		ArrayList<Task> tasksStopAtTime = new ArrayList<Task>();
-		int time =0;
-	//	queue = new LinkedList<Task>();
-		int counter = 0;
-		while(counter<NUM_TASKS){
-			tasksAtTime = new ArrayList<Task>();
-			tasksStopAtTime = new ArrayList<Task>();
-			for(Task ta : projectTasks.values()){
-				if(time == ta.earliestStartTime){
-					tasksAtTime.add(ta);	
-				}
-				if(time == ta.stopTime){
-					tasksStopAtTime.add(ta);	
-					counter++;
+	//Complexity is N tasks + E edges/task
+		/**
+		 * Method to calculate the slack of the task. Have to go thorugh every task and check if there is some slack or not and also its edges.
+		 */
+		private void calculateSlack(){
+			while(lastQueue.size() != 0){
+				Task task = lastQueue.removeFirst();
+				if(task.stopTime<finishTime){
+					task.slack = finishTime - task.stopTime;
+					task.latestStartTime = finishTime - task.timeConsumption;
+				}else if(task.stopTime == finishTime){
+					task.latestStartTime = task.earliestStartTime;
+					task.slack = 0;
 				}
 			}
-			if(tasksAtTime.size()>0){
-				workingSet.put(time, tasksAtTime);
+			while(delayedQueue.size() != 0){
+				Task task = delayedQueue.removeFirst();
+				int latestStartTime = 0;
+				inner:
+				for(Task dependent : task.outEdges){
+					
+					//If task is the only inEdge to another task, this task cannot be delayed
+					if(dependent.inEdges.size() == 1){
+						task.slack = 0;
+						task.latestStartTime = task.earliestStartTime;
+						break inner;
+					}
+					int count = 0;
+					for(Integer sameLevel : dependent.inEdges){
+							if(projectTasks.get(sameLevel).stopTime<task.stopTime){
+								count++;
+							}
+							else if(latestStartTime<projectTasks.get(sameLevel).stopTime){
+								latestStartTime = projectTasks.get(sameLevel).stopTime;
+							}
+					}
+					//If all the in edges where this.task has an out edge is the largest stop time, this mean that this task cannot be delayed
+					if(count == dependent.inEdges.size()){
+						task.slack = 0;
+						task.latestStartTime = task.earliestStartTime;
+						break inner;
+						
+					}
+					else if(task.latestStartTime < latestStartTime){
+						task.latestStartTime = latestStartTime;
+						task.slack = task.latestStartTime -task.earliestStartTime;
+					}
+				}
 			}
-			if(tasksStopAtTime.size()>0){
-				stoppingSet.put(time, tasksStopAtTime);
-			}
-			time++;
 		}
-	
-		time = 0;
+	//Complexity of this method is N-tasks
+	/**
+	 * Print the project execution by going through the execution queue. 
+	 */
+	public void printProjectExecution(){
+		int time =0;
 		int manpower = 0;
-		System.out.println("\n" + "Project EXECUTION");
-		while(stoppingSet.size() != 0){
-			if(workingSet.containsKey(time) || stoppingSet.containsKey(time)){
-				System.out.println("**************************");
-				System.out.println("Time: " + time);
-				if(workingSet.containsKey(time)){
-					for(Task taskAtTime : workingSet.get(time)){
-						System.out.println("Starting: " + taskAtTime.id);
+		System.out.print("\n" + "Project EXECUTION \n"+
+		"------------------------");
+		while(tasksAtStopTime.size() != 0){
+			if(tasksAtStartTime.containsKey(time) || tasksAtStopTime.containsKey(time)){
+			//	System.out.println();
+				System.out.print("\n" + "Time: " + time);
+				if(tasksAtStartTime.containsKey(time)){
+					for(Task taskAtTime : tasksAtStartTime.get(time)){
+						System.out.print("\n	Starting: " + taskAtTime.id);
 						manpower += taskAtTime.staff;
 					}
 				}
 				
-				if(stoppingSet.containsKey(time)){
-					for(Task stopAtTime : stoppingSet.get(time)){
-						System.out.println("Finished: " + stopAtTime.id);
+				if(tasksAtStopTime.containsKey(time)){
+					for(Task stopAtTime : tasksAtStopTime.get(time)){
+						System.out.print("\n	Finished: " + stopAtTime.id);
 						manpower -= stopAtTime.staff;
 					}
 				}
-				System.out.println("Manpower: " + manpower);
+				System.out.print("\n	Current staff: " + manpower);
 			}
-			workingSet.remove(time);
-			stoppingSet.remove(time);
+			tasksAtStartTime.remove(time);
+			tasksAtStopTime.remove(time);
 			time++;
 		}
-		System.out.println("********THE PROJECT WILL FINISH IN: " + (time-1) + "************");
+		System.out.println("\n***  Shortest possible project execution is: " + (time-1) + "  ***\n");
 
 	}
 	
@@ -245,23 +277,23 @@ public class Project {
 	 */
 	public void printTasks(){
 		for(Task task : projectTasks.values()){
-			System.out.println("Task Id: " + task.id +"\n"
-					+ "name of this task: " + task.name + "\n"
+			System.out.print("Task Id: " + task.id +"\n"
+					+ "Task name: " + task.name + "\n"
 					+ "Time estimate: " + task.timeConsumption + "\n"
 					+ "Manpower requirements: " + task.staff + "\n"
 					+ "Earliest start time: " + task.earliestStartTime + "\n"
 					+ "Latest start time: " + task.latestStartTime + "\n"
 					+ "Slack: " + task.slack);
 //			Denpendency edges ");
-			System.out.println("outEdges: ");
+			System.out.print("outEdges: ");
 			for(Task dependency : task.outEdges){
 				System.out.print(dependency.id + ", ");
 			}
-			System.out.println("inEdges: ");
+			System.out.print("\n" + "inEdges: ");
 			for(Integer dependency : task.inEdges){
 				System.out.print(dependency + ", ");
 			}
-			System.out.println("**********************************");
+			System.out.println("\n"+"---------------------------- \n");
 		}
 	}
 	
@@ -274,6 +306,7 @@ public class Project {
 			File inputFile = new File(inputFilename);
 			BufferedReader reader = new BufferedReader(new FileReader(inputFile));
 			NUM_TASKS = Integer.parseInt(reader.readLine());
+			System.out.println("NUM-TASKS" +NUM_TASKS);
 			projectTasks = new HashMap<Integer, Task>(NUM_TASKS);
 			String line = reader.readLine();
 			

@@ -4,7 +4,7 @@ import java.util.ArrayList;
 
 public class Task {
 	int id, staff, timeConsumption, earliestStartTime;
-	int latestStartTime =0;
+	int latestStartTime =-1;
 	int slack = -1;
 	String name;
 	int stopTime; //Is really startTime + timeConsumption
@@ -13,7 +13,6 @@ public class Task {
 	ArrayList<Integer> inEdges;
 	ArrayList<Task> outEdges = new ArrayList<Task>();
 	int indegree;
-	boolean visited = false;
 	
 	public Task(int id, String name, int timeConsumption, int manpower, ArrayList<Integer> dependencies){
 		this.id = id;
