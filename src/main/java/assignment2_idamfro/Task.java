@@ -7,20 +7,20 @@ public class Task {
 	int latestStartTime =-1;
 	int slack = -1;
 	String name;
-	int stopTime; //Is really startTime + timeConsumption
+	int stopTime = 0; //Is really startTime + timeConsumption
 	//if slack is 0, then this is a critical task
 	
 	ArrayList<Integer> inEdges;
 	ArrayList<Task> outEdges = new ArrayList<Task>();
 	int indegree;
 	
-	public Task(int id, String name, int timeConsumption, int manpower, ArrayList<Integer> dependencies){
+	public Task(int id, String name, int timeConsumption, int manpower, ArrayList<Integer> dependentOf){
 		this.id = id;
 		this.name = name;
 		this.timeConsumption = timeConsumption;
 		this.staff = manpower;
-		this.inEdges = dependencies;
-		setIndegree(dependencies.size());
+		this.inEdges = dependentOf;
+		setIndegree(dependentOf.size());
 	}	
 	public void setIndegree(int numDependencies){
 		this.indegree = numDependencies;

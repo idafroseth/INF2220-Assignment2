@@ -20,7 +20,9 @@ public class Project {
 		System.out.println("\n******** PROJECT " + inputFilename + " **********");
 		importTasks();
 		topologicalSort(NUM_TASKS);
-		printTasks();
+		for(Task task:projectTasks.values()){
+				printTasks(task);
+		}
 		printProjectExecution();
 	}
 	
@@ -54,20 +56,22 @@ public class Project {
 				task.earliestStartTime = 0;
 				task.stopTime = task.timeConsumption;
 				delayedQueue.add(task);
-				addToStartQueue(0,task);
+				addToStartQueue(task.earliestStartTime,task);
 				addToStopQueue(task.stopTime,task);
 			}
 		}
 		Task workingTask = null;
 		while( queue.size() != 0){
-			workingTask = queue.getFirst();
-			queue.remove(workingTask);
+			workingTask = queue.removeFirst();
 			++counter;
 			
 			for(Task task : workingTask.outEdges){
+				if(task.earliestStartTime<workingTask.stopTime){
+					task.earliestStartTime = workingTask.stopTime;
+				}
 				if(--task.indegree == 0){
 					queue.add(task);
-					int time = workingTask.stopTime;
+					int time = task.earliestStartTime;
 					int stopTime = time +task.timeConsumption;
 					task.earliestStartTime =  time;
 					task.stopTime = stopTime;
@@ -275,8 +279,8 @@ public class Project {
 	/**
 	 * Print the project tasks and its attribute
 	 */
-	public void printTasks(){
-		for(Task task : projectTasks.values()){
+	public void printTasks(Task task){
+//		for(Task task : projectTasks.values()){
 			System.out.print("Task Id: " + task.id +"\n"
 					+ "Task name: " + task.name + "\n"
 					+ "Time estimate: " + task.timeConsumption + "\n"
@@ -294,7 +298,7 @@ public class Project {
 				System.out.print(dependency + ", ");
 			}
 			System.out.println("\n"+"---------------------------- \n");
-		}
+//		}
 	}
 	
 	/**
@@ -315,7 +319,9 @@ public class Project {
 				ArrayList<Integer> dependencies = new ArrayList<Integer>();
 				for(int i = 4; i<words.length-1; i++){
 					dependencies.add(Integer.parseInt(words[i]));
+				
 				}
+
 				Task newTask = new Task(Integer.parseInt(words[0]), words[1], Integer.parseInt(words[2]), Integer.parseInt(words[3]), dependencies);
 				projectTasks.put(Integer.parseInt(words[0]) ,newTask);	
 			}
@@ -344,10 +350,14 @@ public class Project {
 	
 
 	public static void main(String[] args){
+		args = new String[1];
+				
+		args[0] = "input.txt";
 		if(args.length != 1){
 			System.out.println("Wrong number of arguments, use: java assignment2.Project <projectName>.txt");
 			System.exit(0);
 		}
+		
 		Project project = new Project(args[0]);
 	//	Project project = new Project("");
 	}
